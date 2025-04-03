@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DonutSMP Auction Search</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .fade-in {
+      animation: fadeIn 0.3s ease-in;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .spinner {
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .blur-overlay {
+      backdrop-filter: blur(12px);
+      pointer-events: none;
+      opacity: 0.3;
+    }
+    .dropdown {
+      animation: slideDown 0.2s ease-out;
+    }
+    @keyframes slideDown {
+      from { transform: translateY(-10px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <!-- APIキー入力モーダル -->
+  <div id="apiKeyModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-8 max-w-md w-full m-4 fade-in">
+      <h2 class="text-2xl font-bold mb-6 text-center">Enter API Key</h2>
+      <div class="space-y-4">
+        <div>
+          <label for="modalApiKey" class="block text-sm font-medium text-gray-700 mb-2">API Key</label>
+          <input type="password" id="modalApiKey" placeholder="Enter your API key"
+            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+        </div>
+        <button id="saveApiKey" 
+          class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors">
+          Save and Continue
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="container mx-auto px-4 py-8 max-w-4xl">
+    <!-- ヘッダー部分 -->
+    <div class="flex justify-between items-center mb-8">
+      <h1 class="text-3xl font-bold text-gray-800">DonutSMP Auction Search</h1>
+      <!-- APIキー設定ボタン -->
+      <div class="relative">
+        <button id="apiKeyMenuButton" class="p-2 rounded-full hover:bg-gray-100 transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+          </svg>
+        </button>
+        <!-- APIキーメニュー -->
+        <div id="apiKeyMenu" class="hidden absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-lg py-2 dropdown z-40">
+          <div class="px-4 py-2">
+            <label class="block text-sm font-medium text-gray-700 mb-2">API Key</label>
+            <div class="flex gap-2">
+              <input type="password" id="apiKey" readonly
+                class="flex-1 px-3 py-1.5 bg-gray-50 border border-gray-300 rounded-md text-sm">
+              <button id="editApiKey" class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors text-sm">
+                Edit
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 検索フォーム -->
+    <div id="mainContent" class="blur-overlay">
+      <form id="searchForm" class="bg-white p-6 rounded-lg shadow-md mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label for="search" class="block text-sm font-medium text-gray-700 mb-2">Search</label>
+            <input type="text" id="search" placeholder="e.g. diamond" disabled
+              class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+          </div>
+          <div>
+            <label for="sort" class="block text-sm font-medium text-gray-700 mb-2">Sort by</label>
+            <select id="sort" disabled
+              class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+              <option value="lowest_price">Lowest Price</option>
+              <option value="highest_price">Highest Price</option>
+              <option value="recently_listed">Recently Listed</option>
+              <option value="last_listed">Last Listed</option>
+            </select>
+          </div>
+        </div>
+        <button type="submit" disabled
+          class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center">
+          <span id="searchButtonText">Search</span>
+          <svg id="loadingSpinner" class="spinner ml-2 h-5 w-5 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </button>
+      </form>
+
+      <!-- 結果表示エリア -->
+      <div id="results" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+
+      <!-- ページネーション -->
+      <div class="pagination flex justify-center gap-4 mt-6">
+        <button id="prevPage"
+          class="hidden px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors">
+          Previous
+        </button>
+        <button id="nextPage"
+          class="hidden px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors">
+          Next
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentPage = 1;
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const searchButtonText = document.getElementById('searchButtonText');
+    const mainContent = document.getElementById('mainContent');
+    const apiKeyModal = document.getElementById('apiKeyModal');
+    const modalApiKeyInput = document.getElementById('modalApiKey');
+    const apiKeyInput = document.getElementById('apiKey');
+    const searchForm = document.getElementById('searchForm');
+    const searchInput = document.getElementById('search');
+    const sortSelect = document.getElementById('sort');
+    const submitButton = searchForm.querySelector('button[type="submit"]');
+    const apiKeyMenuButton = document.getElementById('apiKeyMenuButton');
+    const apiKeyMenu = document.getElementById('apiKeyMenu');
+
+    // APIキーメニューの表示制御
+    apiKeyMenuButton.addEventListener('click', () => {
+      const hasApiKey = getStoredApiKey();
+      if (hasApiKey) {
+        apiKeyMenu.classList.toggle('hidden');
+      } else {
+        apiKeyModal.style.display = 'flex';
+      }
+    });
+
+    // メニュー外クリックで閉じる
+    document.addEventListener('click', (e) => {
+      if (!apiKeyMenuButton.contains(e.target) && !apiKeyMenu.contains(e.target)) {
+        apiKeyMenu.classList.add('hidden');
+      }
+    });
+
+    // APIキーの取得と設定
+    function getStoredApiKey() {
+      return localStorage.getItem('donutsmp_api_key');
+    }
+
+    function setApiKey(apiKey) {
+      localStorage.setItem('donutsmp_api_key', apiKey);
+      apiKeyInput.value = apiKey;
+      modalApiKeyInput.value = apiKey;
+      enableForm();
+    }
+
+    function enableForm() {
+      mainContent.classList.remove('blur-overlay');
+      searchInput.disabled = false;
+      sortSelect.disabled = false;
+      submitButton.disabled = false;
+      apiKeyModal.style.display = 'none';
+    }
+
+    function disableForm() {
+      mainContent.classList.add('blur-overlay');
+      searchInput.disabled = true;
+      sortSelect.disabled = true;
+      submitButton.disabled = true;
+      apiKeyModal.style.display = 'flex';
+      apiKeyMenu.classList.add('hidden');
+    }
+
+    // 初期化時のAPIキーチェック
+    const storedApiKey = getStoredApiKey();
+    if (storedApiKey) {
+      setApiKey(storedApiKey);
+    } else {
+      disableForm();
+    }
+
+    // APIキーの保存
+    document.getElementById('saveApiKey').addEventListener('click', () => {
+      const apiKey = modalApiKeyInput.value.trim();
+      if (apiKey) {
+        setApiKey(apiKey);
+      }
+    });
+
+    // APIキーの編集
+    document.getElementById('editApiKey').addEventListener('click', () => {
+      modalApiKeyInput.value = apiKeyInput.value;
+      disableForm();
+    });
+
+    document.getElementById('searchForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      currentPage = 1;
+      fetchAuctions(currentPage);
+    });
+
+    document.getElementById('nextPage').addEventListener('click', function() {
+      currentPage++;
+      fetchAuctions(currentPage);
+    });
+
+    document.getElementById('prevPage').addEventListener('click', function() {
+      if (currentPage > 1) {
+        currentPage--;
+        fetchAuctions(currentPage);
+      }
+    });
+
+    async function fetchAuctions(page) {
+      const search = document.getElementById('search').value;
+      const sort = document.getElementById('sort').value;
+      const apiKey = apiKeyInput.value;
+
+      if (!apiKey) {
+        showError('API key is required.');
+        disableForm();
+        return;
+      }
+
+      // ローディング表示
+      loadingSpinner.classList.remove('hidden');
+      searchButtonText.textContent = 'Searching...';
+
+      try {
+        const response = await fetch('/api/auction', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ api_key: apiKey, search, sort, page })
+        });
+        
+        if (!response.ok) {
+          throw new Error('Backend server error occurred');
+        }
+        
+        const data = await response.json();
+        displayResults(data);
+      } catch (error) {
+        showError(error.message);
+      } finally {
+        // ローディング非表示
+        loadingSpinner.classList.add('hidden');
+        searchButtonText.textContent = 'Search';
+      }
+    }
+
+    function showError(message) {
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = `
+        <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 fade-in" role="alert">
+          <p class="font-bold">Error</p>
+          <p>${message}</p>
+        </div>
+      `;
+      hidePagination();
+    }
+
+    // 数値を k, m, b 形式にフォーマット
+    function formatCurrency(num) {
+      if (num >= 1000000000) {
+        return (num / 1000000000).toFixed(1) + 'b';
+      }
+      if (num >= 1000000) {
+        return (num / 1000000).toFixed(1) + 'm';
+      }
+      if (num >= 1000) {
+        return (num / 1000).toFixed(1) + 'k';
+      }
+      return num.toString();
+    }
+
+    // アイテム名をアイコンURLに変換
+    function getItemIconUrl(name) {
+      const cleanName = name.replace(/^minecraft:/, '').replace(/[^a-z0-9_]/g, '_');
+      return `https://mc.nerothe.com/img/1.21.4/minecraft_${cleanName}.png`;
+    }
+
+    // アイテム名からminecraft:プレフィックスを削除
+    function formatItemName(name) {
+      return name.replace(/^minecraft:/, '');
+    }
+
+    function displayResults(data) {
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = '';
+
+      if (data.error) {
+        showError(data.error);
+        return;
+      }
+
+      if (!data.result || data.result.length === 0) {
+        resultsDiv.innerHTML = `
+          <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 fade-in" role="alert">
+            <p>No results found.</p>
+          </div>
+        `;
+        hidePagination();
+        return;
+      }
+
+      data.result.forEach(item => {
+        // ミリ秒を想定して計算
+        const timeLeft = parseInt(item.time_left);
+        const days = Math.floor(timeLeft / (24 * 60 * 60 * 1000));
+        const hours = Math.floor((timeLeft % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+        const minutes = Math.floor((timeLeft % (60 * 60 * 1000)) / (60 * 1000));
+        const seconds = Math.floor((timeLeft % (60 * 1000)) / 1000);
+
+        // 時間表示の整形
+        let timeString = '';
+        if (days > 0) timeString += `${days}d `;
+        if (hours > 0 || days > 0) timeString += `${hours}h `;
+        if (minutes > 0 || hours > 0 || days > 0) timeString += `${minutes}m `;
+        timeString += `${seconds}s`;
+
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'bg-white rounded-lg shadow-md p-4 fade-in hover:shadow-lg transition-shadow';
+        
+        let html = `
+          <div class="flex flex-col h-full">
+            <div class="flex items-start gap-3">
+              <div class="w-12 h-12 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden">
+                <img src="${getItemIconUrl(item.item.id)}" alt="${formatItemName(item.item.id)}"
+                     class="w-full h-full object-contain p-1"
+                     onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'%23999999\'%3E%3Cpath d=\'M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-1 16H6c-.55 0-1-.45-1-1V6c0-.55.45-1 1-1h12c.55 0 1 .45 1 1v12c0 .55-.45 1-1 1z\'/%3E%3C/svg%3E';">
+              </div>
+              <div class="flex-1 min-w-0">
+                <h3 class="text-base font-semibold text-gray-800 truncate">
+                    ${formatItemName(item.item.id)}
+                    ${item.item.count > 1 ? `<span class="text-sm font-normal text-gray-600">×${item.item.count}</span>` : ''}
+                </h3>
+                <div class="flex items-baseline gap-2">
+                  <p class="text-lg font-bold text-blue-600">$${formatCurrency(item.price)}</p>
+                  <p class="text-xs text-gray-500">${timeString}</p>
+                </div>
+                <p class="text-sm text-gray-600 truncate">Seller: ${item.seller.name}</p>
+              </div>
+            </div>
+        `;
+
+        if (item.item.lore && item.item.lore.length > 0) {
+          html += `
+            <div class="mt-2 p-2 bg-gray-50 rounded-md">
+              <p class="text-xs font-medium text-gray-700">Description:</p>
+              <p class="text-xs text-gray-600 line-clamp-2">${item.item.lore.join('\n')}</p>
+            </div>
+          `;
+        }
+
+        if (item.item.contents && item.item.contents.length > 0) {
+          html += `
+            <div class="mt-2">
+              <p class="text-xs font-medium text-gray-700">Contents:</p>
+              <ul class="space-y-0.5">
+                ${item.item.contents.slice(0, 3).map(content => `
+                  <li class="text-xs text-gray-600 truncate flex items-center gap-1">
+                    <img src="${getItemIconUrl(content.display_name)}" alt="${formatItemName(content.display_name)}"
+                         class="w-4 h-4 object-contain"
+                         onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'%23999999\'%3E%3Cpath d=\'M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-1 16H6c-.55 0-1-.45-1-1V6c0-.55.45-1 1-1h12c.55 0 1 .45 1 1v12c0 .55-.45 1-1 1z\'/%3E%3C/svg%3E';">
+                    ${formatItemName(content.display_name)} × ${content.count}
+                  </li>
+                `).join('')}
+                ${item.item.contents.length > 3 ? `<li class="text-xs text-gray-400">+${item.item.contents.length - 3} more...</li>` : ''}
+              </ul>
+            </div>
+          `;
+        }
+
+        itemDiv.innerHTML = html;
+        resultsDiv.appendChild(itemDiv);
+      });
+
+      // ページネーションの表示制御
+      document.getElementById('prevPage').style.display = currentPage > 1 ? 'inline-block' : 'none';
+      document.getElementById('nextPage').style.display = data.result.length > 0 ? 'inline-block' : 'none';
+    }
+
+    function hidePagination() {
+      document.getElementById('prevPage').style.display = 'none';
+      document.getElementById('nextPage').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
